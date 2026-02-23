@@ -10,12 +10,7 @@ const generateToken = (payload) => {
 
 // Generate OTP (4-digit, cryptographically secure)
 const generateOTP = () => {
-  // In development mode, use fixed OTP for easier testing
-  if (process.env.NODE_ENV === 'development') {
-    return '1234';
-  }
-  
-  // In production, use crypto-secure random 4-digit OTP
+  // Always use crypto-secure random 4-digit OTP
   return crypto.randomInt(1000, 9999).toString();
 };
 
