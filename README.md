@@ -43,16 +43,18 @@ Smart Loss Control helps cooking oil retailers across Africa eliminate the "Sile
 
 ### Core Features (✅ Implemented)
 
-- ✅ **Complete Authentication System** - Owner OTP + Staff PIN authentication
-- ✅ **WhatsApp/SMS OTP** - 4-digit crypto-secure OTP with fallback
+- ✅ **Complete Authentication System** - Owner PIN + Staff PIN authentication
+- ✅ **Owner PIN Login** - Register once with OTP, then login with 4-digit PIN (offline-capable)
+- ✅ **SMS OTP via Africa's Talking** - 4-digit crypto-secure OTP with sandbox mode
 - ✅ **QR-Based Staff Onboarding** - 30-minute expiry, single-use tokens
-- ✅ **Multi-Country Support** - 15+ African countries (Nigeria, Kenya, Ghana, South Africa, Ethiopia, etc.)
+- ✅ **Multi-Country Support** - 20+ African countries via Africa's Talking
 - ✅ **USD Currency** - Pan-African operations
 - ✅ **Row-Level Security** - Multi-tenant database isolation
 - ✅ **JWT Authentication** - 12-hour sessions with role-based access
 - ✅ **Rate Limiting** - 5 attempts per 15 minutes for OTP
-- ✅ **Bcrypt PIN Hashing** - Secure staff authentication
-- ✅ **Development Mode** - Fixed OTP for easy testing
+- ✅ **Bcrypt PIN Hashing** - Secure owner & staff authentication
+- ✅ **Development Mode** - Console OTP logging for easy testing
+- ✅ **Sandbox Mode** - Free SMS testing via Africa's Talking
 
 ### Planned Features (⏳ In Progress)
 
@@ -80,7 +82,7 @@ Smart Loss Control helps cooking oil retailers across Africa eliminate the "Sile
 - **Framework**: Express 5.x
 - **Database**: PostgreSQL 14+ with Row-Level Security
 - **Authentication**: JWT + bcrypt
-- **Notifications**: Twilio (WhatsApp/SMS)
+- **Notifications**: Africa's Talking (SMS/WhatsApp)
 - **Documentation**: Swagger/OpenAPI 3.0
 - **Testing**: Custom test scripts
 
@@ -113,11 +115,11 @@ Smart Loss Control helps cooking oil retailers across Africa eliminate the "Sile
    JWT_SECRET=your_secret_key_here
    NODE_ENV=development
    
-   # Optional: Twilio for WhatsApp/SMS (not required for development)
-   TWILIO_ACCOUNT_SID=your_account_sid
-   TWILIO_AUTH_TOKEN=your_auth_token
-   TWILIO_WHATSAPP_NUMBER=+14155238886
-   TWILIO_PHONE_NUMBER=+1234567890
+   # Optional: Africa's Talking for SMS (not required for development)
+   AT_USERNAME=sandbox
+   AT_API_KEY=your_api_key_here
+   AT_SANDBOX=true
+   AT_SENDER_ID=
    ```
 
 4. **Create database**
@@ -185,6 +187,9 @@ The database consists of 15 tables organized into 4 groups:
 - **002_add_row_level_security.sql** - Multi-tenant RLS
 - **003_staff_name_login.sql** - Staff name authentication
 - **004_africa_expansion.sql** - Pan-African support (15+ countries, USD)
+- **005_add_supplier_name.sql** - Supplier tracking
+- **006_add_sku_soft_delete.sql** - Soft delete for SKUs
+- **007_add_registration_data_to_otp.sql** - Store registration data in OTP table (security fix)
 
 ## 📚 API Documentation
 
@@ -199,7 +204,9 @@ Raw specification: [docs/openapi.yaml](docs/openapi.yaml)
 | Endpoint | Method | Description | Auth Required |
 |----------|--------|-------------|---------------|
 | `/auth/register-owner` | POST | Register owner, send 4-digit OTP | No |
-| `/auth/verify-otp` | POST | Verify OTP, get JWT token | No |
+| `/auth/verify-otp` | POST | Verify OTP, create user account | No |
+| `/auth/set-pin` | POST | Set 4-digit PIN after OTP verification | No |
+| `/auth/login-owner-pin` | POST | Owner daily login with phone + PIN (no OTP!) | No |
 | `/auth/generate-qr` | POST | Generate QR for staff onboarding | Owner |
 | `/auth/qr-status/:token` | GET | Check QR status with countdown | No |
 | `/auth/staff/link` | POST | Link staff device via QR | No |
@@ -220,31 +227,25 @@ Raw specification: [docs/openapi.yaml](docs/openapi.yaml)
 
 ### Documentation for Teams
 
-- **Frontend Integration**: [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md)
-- **API Testing Guide**: [docs/API_TESTING_GUIDE.md](docs/API_TESTING_GUIDE.md)
-- **WhatsApp Setup**: [docs/WHATSAPP_SETUP.md](docs/WHATSAPP_SETUP.md)
-- **Authentication Explained**: [docs/AUTHENTICATION_EXPLAINED.md](docs/AUTHENTICATION_EXPLAINED.md)
+- **Swagger Testing Guide**: [SWAGGER_TEST_EXAMPLE.md](SWAGGER_TEST_EXAMPLE.md)
+- **Africa's Talking Setup**: [docs/AFRICAS_TALKING_SETUP.md](docs/AFRICAS_TALKING_SETUP.md)
+- **Migration Summary**: [AFRICAS_TALKING_MIGRATION_SUMMARY.md](AFRICAS_TALKING_MIGRATION_SUMMARY.md)
 - **UI Specifications**: [docs/ui-specs/](docs/ui-specs/)
 - **Security Documentation**: [docs/security/](docs/security/)
+- **Database Schema**: [docs/database-schema.md](docs/database-schema.md)
 
 ## 📁 Project Structure
 
 ```
 smart-loss-control-backend/
 ├── docs/
-│   ├── openapi.yaml              # Swagger API specification
+│   ├── openapi.yaml              # Swagger API specification (v1.2.0)
 │   ├── database-schema.md        # ER diagram & table docs
-│   ├── AUTHENTICATION_EXPLAINED.md
-│   ├── FRONTEND_INTEGRATION.md
-│   ├── API_TESTING_GUIDE.md
-│   ├── WHATSAPP_SETUP.md
-│   ├── AFRICA_EXPANSION.md
+│   ├── AFRICAS_TALKING_SETUP.md  # SMS setup guide
 │   ├── api/
 │   │   └── postman_collection.json
-│   ├── guides/
-│   │   ├── TESTING_QUICKSTART.md
-│   │   ├── WHATSAPP_QUICKSTART.md
-│   │   └── SWAGGER_QR_GUIDE.md
+│   ├── project-status/
+│   │   └── OWNER_PIN_COMPLETE_SUMMARY.md
 │   ├── security/
 │   │   ├── README.md
 │   │   ├── 01-alignment-analysis.md
@@ -253,12 +254,16 @@ smart-loss-control-backend/
 │   └── ui-specs/
 │       ├── README.md
 │       ├── 01-authentication.md
+│       ├── OWNER_PIN_FLOW_SUMMARY.md
 │       └── ... (9 UI specification files)
 ├── migrations/
 │   ├── 001_init.sql              # Initial database schema
 │   ├── 002_add_row_level_security.sql
 │   ├── 003_staff_name_login.sql
-│   └── 004_africa_expansion.sql
+│   ├── 004_africa_expansion.sql
+│   ├── 005_add_supplier_name.sql
+│   ├── 006_add_sku_soft_delete.sql
+│   └── 007_add_registration_data_to_otp.sql
 ├── scripts/
 │   ├── run-migration.js          # Migration runner
 │   └── reset-db.js               # Database reset (dev only)
@@ -267,20 +272,40 @@ smart-loss-control-backend/
 │   │   ├── db.js                 # PostgreSQL connection
 │   │   └── swagger.js            # Swagger configuration
 │   ├── controllers/
-│   │   └── authController.js     # ✅ Authentication logic
+│   │   ├── authController.js     # ✅ Authentication + PIN logic
+│   │   ├── dashboardController.js
+│   │   ├── inventoryController.js
+│   │   ├── salesController.js
+│   │   └── shopController.js
 │   ├── middleware/
 │   │   └── auth.js               # ✅ JWT verification
 │   ├── routes/
 │   │   └── authRoutes.js         # ✅ Auth endpoints
 │   ├── services/
-│   │   └── smsService.js         # ✅ WhatsApp/SMS delivery
+│   │   └── smsService.js         # ✅ Africa's Talking SMS
 │   ├── utils/
 │   │   └── jwt.js                # ✅ Token & OTP generation
 │   ├── app.js                    # Express app setup
 │   └── server.js                 # Server entry point
 ├── tests/
-│   ├── test-auth.js              # ✅ Complete auth test
-│   └── test-qr-generation.js     # ✅ QR generation test
+│   ├── README.md                 # Testing documentation
+│   ├── auth/
+│   │   ├── test-owner-pin-flow.js  # ✅ PIN authentication test
+│   │   ├── check-owners.js
+│   │   ├── check-staff.js
+│   │   └── create-test-staff.js
+│   ├── integration/
+│   │   ├── test-complete-flow.js
+│   │   ├── test-dashboard-with-data.js
+│   │   └── test-shop-management-v2.js
+│   ├── inventory/
+│   │   ├── test-sales-sync.js
+│   │   ├── test-restock-supplier.js
+│   │   └── test-duplicate-sku.js
+│   └── api/
+│       └── test-swagger.js
+├── SWAGGER_TEST_EXAMPLE.md       # ✅ Complete testing guide
+├── AFRICAS_TALKING_MIGRATION_SUMMARY.md
 ├── .env                          # Environment variables (gitignored)
 ├── .gitignore
 ├── package.json
@@ -299,11 +324,14 @@ smart-loss-control-backend/
 ### Testing Commands
 
 ```bash
-# Test complete authentication flow
-node tests/test-auth.js
+# Test owner PIN authentication flow
+node tests/auth/test-owner-pin-flow.js
 
-# Test QR generation
-node tests/test-qr-generation.js
+# Test complete integration flow
+node tests/integration/test-complete-flow.js
+
+# Test dashboard with data
+node tests/integration/test-dashboard-with-data.js
 
 # Check server health
 curl http://localhost:5000/health
@@ -322,21 +350,31 @@ npm run migrate
 
 ## 🧪 Testing
 
-### Automated Testing
-
-```bash
-# Run authentication tests (10 scenarios)
-node tests/test-auth.js
-
-# Run QR generation tests
-node tests/test-qr-generation.js
-```
-
-### Manual Testing
+### Swagger UI Testing (Recommended)
 
 1. Start the server: `npm start`
 2. Open Swagger UI: `http://localhost:5000/api-docs`
-3. Test endpoints interactively
+3. Follow the complete guide: [SWAGGER_TEST_EXAMPLE.md](SWAGGER_TEST_EXAMPLE.md)
+
+**Complete test flow includes:**
+- Owner registration with OTP
+- OTP verification
+- PIN setup
+- PIN login (no OTP needed!)
+- Security validations
+
+### Automated Testing
+
+```bash
+# Test owner PIN authentication flow
+node tests/auth/test-owner-pin-flow.js
+
+# Test complete integration
+node tests/integration/test-complete-flow.js
+
+# Test inventory features
+node tests/inventory/test-sales-sync.js
+```
 
 ### Postman Collection
 
@@ -344,13 +382,19 @@ Import collection from: `docs/api/postman_collection.json`
 
 ### Development Mode
 
-- **OTP**: Always `1234` (no real SMS needed)
-- **WhatsApp**: Console logging (no Twilio required)
+- **OTP**: Random 4-digit logged to console (no SMS costs)
+- **SMS**: Console logging (Africa's Talking not required)
 - **Testing**: Easy and fast
+
+### Sandbox Mode (Recommended for Capstone)
+
+- **OTP**: Sent to Africa's Talking dashboard (not real phones)
+- **SMS**: Free unlimited testing
+- **Setup**: 5 minutes - see [docs/AFRICAS_TALKING_SETUP.md](docs/AFRICAS_TALKING_SETUP.md)
 
 ## 🌍 Multi-Country Support
 
-### Supported Countries (15+)
+### Supported Countries (20+ via Africa's Talking)
 
 - 🇳🇬 Nigeria
 - 🇰🇪 Kenya
@@ -359,24 +403,27 @@ Import collection from: `docs/api/postman_collection.json`
 - 🇪🇹 Ethiopia
 - 🇺🇬 Uganda
 - 🇹🇿 Tanzania
-- 🇨🇲 Cameroon
-- 🇨🇮 Ivory Coast
-- 🇸🇳 Senegal
 - 🇷🇼 Rwanda
+- 🇲🇼 Malawi
 - 🇿🇲 Zambia
 - 🇿🇼 Zimbabwe
 - 🇧🇼 Botswana
-- 🇲🇼 Malawi
+- 🇨🇲 Cameroon
+- 🇨🇮 Ivory Coast
+- 🇸🇳 Senegal
+- And more...
 
 ### Phone Number Validation
 
 ```javascript
-// Supported formats
+// Supported formats (international E.164)
 "+234801234567"  // Nigeria
 "+254712345678"  // Kenya
 "+233201234567"  // Ghana
 "+27821234567"   // South Africa
 "+251911234567"  // Ethiopia
+"+256789012345"  // Uganda
+"+255789123456"  // Tanzania
 // ... and more
 ```
 
@@ -417,20 +464,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Documentation**: Start with [docs/00-INDEX.md](docs/00-INDEX.md)
+- **Documentation**: Check [docs/](docs/) folder
 - **API Docs**: http://localhost:5000/api-docs
+- **Testing Guide**: [SWAGGER_TEST_EXAMPLE.md](SWAGGER_TEST_EXAMPLE.md)
+- **SMS Setup**: [docs/AFRICAS_TALKING_SETUP.md](docs/AFRICAS_TALKING_SETUP.md)
 - **GitHub Issues**: [Report bugs](https://github.com/alphay78/smart-loss-control-backend/issues)
 
 ## 🗺 Roadmap
 
 ### Phase 1 (✅ Complete - MVP Authentication)
-- ✅ Database schema design (4 migrations)
-- ✅ API documentation (Swagger)
-- ✅ Complete authentication system
-- ✅ WhatsApp/SMS OTP integration
-- ✅ Multi-country support (15+ countries)
-- ✅ Row-Level Security
-- ✅ Comprehensive documentation
+- ✅ Database schema design (7 migrations)
+- ✅ API documentation (Swagger/OpenAPI)
+- ✅ Complete authentication system with PIN login
+- ✅ Africa's Talking SMS integration (sandbox + production)
+- ✅ Multi-country support (20+ African countries)
+- ✅ Row-Level Security (RLS)
+- ✅ Owner PIN authentication (offline-capable daily login)
+- ✅ Security fix: User creation after OTP verification
+- ✅ Comprehensive documentation and testing guides
 
 ### Phase 2 (⏳ In Progress - Core Features)
 - ⏳ Inventory management endpoints
