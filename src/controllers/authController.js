@@ -4,54 +4,75 @@ const { pool } = require('../config/db');
 const { generateToken, generateOTP } = require('../utils/jwt');
 const { sendOTP } = require('../services/smsService');
 
-// Owner Registration (Step 1: Send OTP)
+// Owner Registration (NEW OWNERS ONLY - Step 1: Send OTP)
 const registerOwner = async (req, res) => {
   const client = await pool.connect();
   
   try {
     const { full_name, shop_name, phone } = req.body;
 
-    // Validation
-    if (!phone) {
+    // Validation - ALL fields required for registration
+    if (!phone || !full_name || !shop_name) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Phone number is required' 
+        message: 'Phone number, full name, and shop name are required for registration' 
       });
     }
 
-    // Check if owner already exists
+    // SECURITY: Check if phone is already registered as OWNER
     const existingOwner = await client.query(
-      'SELECT * FROM users WHERE phone = $1 AND role = $2',
+      'SELECT u.id, u.full_name FROM users u WHERE u.phone = $1 AND u.role = $2',
       [phone, 'OWNER']
     );
 
-    let shopId;
-
     if (existingOwner.rows.length > 0) {
-      // Existing owner - just send new OTP
-      shopId = existingOwner.rows[0].shop_id;
-    } else {
-      // New owner - validate required fields
-      if (!full_name || !shop_name) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Full name and shop name are required for registration' 
-        });
-      }
-
-      // Create shop
-      const shopResult = await client.query(
-        'INSERT INTO shops (shop_name, owner_phone) VALUES ($1, $2) RETURNING id',
-        [shop_name, phone]
-      );
-      shopId = shopResult.rows[0].id;
-
-      // Create owner user
-      await client.query(
-        'INSERT INTO users (shop_id, full_name, phone, role) VALUES ($1, $2, $3, $4)',
-        [shopId, full_name, phone, 'OWNER']
-      );
+      return res.status(409).json({ 
+        success: false, 
+        message: 'This phone number is already registered. Please use the login endpoint instead.' 
+      });
     }
+
+    // SECURITY: Check if phone is already used in shops table (owner_phone)
+    const existingShop = await client.query(
+      'SELECT id, shop_name, owner_phone FROM shops WHERE owner_phone = $1',
+      [phone]
+    );
+
+    if (existingShop.rows.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'This phone number is already registered to another shop owner' 
+      });
+    }
+
+    // SECURITY: Check if phone is used by any user (OWNER or STAFF) in any shop
+    const existingUser = await client.query(
+      'SELECT id, full_name, role, shop_id FROM users WHERE phone = $1',
+      [phone]
+    );
+
+    if (existingUser.rows.length > 0) {
+      const user = existingUser.rows[0];
+      return res.status(409).json({ 
+        success: false, 
+        message: `This phone number is already registered as ${user.role} in another shop` 
+      });
+    }
+
+    // Create shop
+    const shopResult = await client.query(
+      'INSERT INTO shops (shop_name, owner_phone) VALUES ($1, $2) RETURNING id',
+      [shop_name, phone]
+    );
+    const shopId = shopResult.rows[0].id;
+
+    // Create owner user
+    await client.query(
+      'INSERT INTO users (shop_id, full_name, phone, role) VALUES ($1, $2, $3, $4)',
+      [shopId, full_name, phone, 'OWNER']
+    );
+
+    console.log(`[SECURITY] New owner registered: ${full_name}, phone: ${phone}, shop: ${shop_name}`);
 
     // Generate OTP
     const otp = generateOTP();
@@ -69,7 +90,7 @@ const registerOwner = async (req, res) => {
     // Response based on SMS result
     const response = {
       success: true,
-      message: `OTP sent to ${phone}`,
+      message: `Registration successful! OTP sent to ${phone}`,
       sms_status: smsResult.mode
     };
 
@@ -90,9 +111,100 @@ const registerOwner = async (req, res) => {
 
   } catch (error) {
     console.error('Register owner error:', error);
+    
+    // Handle unique constraint violations
+    if (error.code === '23505') {
+      if (error.constraint === 'shops_owner_phone_key') {
+        return res.status(409).json({ 
+          success: false, 
+          message: 'This phone number is already registered to another shop' 
+        });
+      }
+    }
+    
     res.status(500).json({ 
       success: false, 
       message: 'Registration failed', 
+      error: error.message 
+    });
+  } finally {
+    client.release();
+  }
+};
+
+// Owner Login (EXISTING OWNERS - Step 1: Send OTP)
+const loginOwner = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { phone } = req.body;
+
+    // Validation - only phone required for login
+    if (!phone) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Phone number is required' 
+      });
+    }
+
+    // Check if owner exists
+    const existingOwner = await client.query(
+      'SELECT u.id, u.full_name, u.shop_id, s.shop_name FROM users u JOIN shops s ON u.shop_id = s.id WHERE u.phone = $1 AND u.role = $2',
+      [phone, 'OWNER']
+    );
+
+    if (existingOwner.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'No account found with this phone number. Please register first.' 
+      });
+    }
+
+    const owner = existingOwner.rows[0];
+    console.log(`[SECURITY] Owner login: ${owner.full_name} (${owner.shop_name}) requesting OTP for phone ${phone}`);
+
+    // Generate OTP
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+    // Store OTP
+    await client.query(
+      'INSERT INTO otp_verifications (phone, otp_code, expires_at) VALUES ($1, $2, $3)',
+      [phone, otp, expiresAt]
+    );
+
+    // Send OTP via SMS
+    const smsResult = await sendOTP(phone, otp);
+    
+    // Response based on SMS result
+    const response = {
+      success: true,
+      message: `OTP sent to ${phone}`,
+      owner_name: owner.full_name,
+      shop_name: owner.shop_name,
+      sms_status: smsResult.mode
+    };
+
+    // Include OTP in development mode or if SMS failed
+    if (process.env.NODE_ENV === 'development' || !smsResult.success) {
+      response.dev_otp = otp;
+    }
+
+    // Include SMS details for debugging
+    if (smsResult.mode === 'production') {
+      response.sms_sid = smsResult.sid;
+    } else if (smsResult.mode === 'fallback') {
+      response.sms_error = smsResult.error;
+      response.fallback_note = 'SMS failed, check console for OTP';
+    }
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('Login owner error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Login failed', 
       error: error.message 
     });
   } finally {
@@ -199,6 +311,225 @@ const verifyOTP = async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'OTP verification failed', 
+      error: error.message 
+    });
+  } finally {
+    client.release();
+  }
+};
+
+// Set PIN for Owner (Step 3: After OTP verification during registration)
+const setPIN = async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { phone, pin } = req.body;
+
+    // Validation
+    if (!phone || !pin) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone and PIN are required'
+      });
+    }
+
+    // Validate PIN format: exactly 4 digits
+    if (!/^\d{4}$/.test(pin)) {
+      return res.status(400).json({
+        success: false,
+        message: 'PIN must be exactly 4 digits (0-9)'
+      });
+    }
+
+    // Check if user exists and is an OWNER
+    const userResult = await client.query(
+      'SELECT id, shop_id, full_name, phone, role, pin_hash FROM users WHERE phone = $1 AND role = $2',
+      [phone, 'OWNER']
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Owner not found. Please register first.'
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Check if PIN is already set
+    if (user.pin_hash) {
+      return res.status(400).json({
+        success: false,
+        message: 'PIN already set. Use the PIN reset endpoint to change it.'
+      });
+    }
+
+    // Verify that OTP was recently verified (within last 10 minutes)
+    const recentOTPVerification = await client.query(
+      `SELECT * FROM otp_verifications
+       WHERE phone = $1 AND is_verified = true
+       AND created_at > NOW() - INTERVAL '10 minutes'
+       ORDER BY created_at DESC LIMIT 1`,
+      [phone]
+    );
+
+    if (recentOTPVerification.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No recent OTP verification found. Please verify OTP first.'
+      });
+    }
+
+    // Hash the PIN
+    const saltRounds = 10;
+    const pinHash = await bcrypt.hash(pin, saltRounds);
+
+    // Store the PIN hash
+    await client.query(
+      'UPDATE users SET pin_hash = $1 WHERE id = $2',
+      [pinHash, user.id]
+    );
+
+    console.log(`[SECURITY] PIN set for owner: ${user.full_name}, phone: ${phone}`);
+
+    // Update last login
+    await client.query(
+      'UPDATE users SET last_login_at = NOW() WHERE id = $1',
+      [user.id]
+    );
+
+    // Generate JWT token
+    const token = generateToken({
+      id: user.id,
+      shop_id: user.shop_id,
+      role: user.role,
+      phone: user.phone
+    });
+
+    res.json({
+      success: true,
+      message: 'PIN set successfully. You can now login with your phone and PIN.',
+      token,
+      user: {
+        id: user.id,
+        shop_id: user.shop_id,
+        full_name: user.full_name,
+        phone: user.phone,
+        role: user.role
+      }
+    });
+
+  } catch (error) {
+    console.error('Set PIN error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to set PIN',
+      error: error.message
+    });
+  } finally {
+    client.release();
+  }
+};
+
+// Owner PIN Login (Daily login with phone + PIN)
+const loginOwnerWithPIN = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { phone, pin } = req.body;
+
+    // Validation
+    if (!phone || !pin) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Phone and PIN are required' 
+      });
+    }
+
+    // Validate PIN format (4 digits)
+    if (!/^\d{4}$/.test(pin)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'PIN must be exactly 4 digits' 
+      });
+    }
+
+    // Get owner user
+    const userResult = await client.query(
+      `SELECT id, shop_id, full_name, phone, role, pin_hash, is_active 
+       FROM users 
+       WHERE phone = $1 AND role = $2`,
+      [phone, 'OWNER']
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid phone or PIN' 
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Check if active
+    if (!user.is_active) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Account is deactivated' 
+      });
+    }
+
+    // Check if PIN is set
+    if (!user.pin_hash) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'PIN not set. Please complete registration by setting your PIN.' 
+      });
+    }
+
+    // Verify PIN
+    const pinMatch = await bcrypt.compare(pin, user.pin_hash);
+
+    if (!pinMatch) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid phone or PIN' 
+      });
+    }
+
+    // Update last login
+    await client.query(
+      'UPDATE users SET last_login_at = NOW() WHERE id = $1',
+      [user.id]
+    );
+
+    console.log(`[SECURITY] Owner logged in with PIN: ${user.full_name}, phone: ${phone}`);
+
+    // Generate JWT token
+    const token = generateToken({
+      id: user.id,
+      shop_id: user.shop_id,
+      role: user.role,
+      phone: user.phone
+    });
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        shop_id: user.shop_id,
+        full_name: user.full_name,
+        phone: user.phone,
+        role: user.role
+      }
+    });
+
+  } catch (error) {
+    console.error('Owner PIN login error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Login failed', 
       error: error.message 
     });
   } finally {
@@ -579,7 +910,10 @@ const getSMSStatus = async (req, res) => {
 
 module.exports = {
   registerOwner,
+  loginOwner,
   verifyOTP,
+  setPIN,
+  loginOwnerWithPIN,
   loginWithPIN,
   linkStaff,
   generateQRCode,
