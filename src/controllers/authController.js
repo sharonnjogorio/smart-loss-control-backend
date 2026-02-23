@@ -59,30 +59,17 @@ const registerOwner = async (req, res) => {
       });
     }
 
-    // Create shop
-    const shopResult = await client.query(
-      'INSERT INTO shops (shop_name, owner_phone) VALUES ($1, $2) RETURNING id',
-      [shop_name, phone]
-    );
-    const shopId = shopResult.rows[0].id;
-
-    // Create owner user
-    await client.query(
-      'INSERT INTO users (shop_id, full_name, phone, role) VALUES ($1, $2, $3, $4)',
-      [shopId, full_name, phone, 'OWNER']
-    );
-
-    console.log(`[SECURITY] New owner registered: ${full_name}, phone: ${phone}, shop: ${shop_name}`);
-
     // Generate OTP
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // Store OTP
+    // Store OTP with registration data (user will be created AFTER OTP verification)
     await client.query(
-      'INSERT INTO otp_verifications (phone, otp_code, expires_at) VALUES ($1, $2, $3)',
-      [phone, otp, expiresAt]
+      'INSERT INTO otp_verifications (phone, otp_code, expires_at, full_name, shop_name) VALUES ($1, $2, $3, $4, $5)',
+      [phone, otp, expiresAt, full_name, shop_name]
     );
+
+    console.log(`[SECURITY] Registration initiated for: ${full_name}, phone: ${phone}, shop: ${shop_name} (awaiting OTP verification)`);
 
     // Send OTP via SMS
     const smsResult = await sendOTP(phone, otp);
@@ -94,17 +81,14 @@ const registerOwner = async (req, res) => {
       sms_status: smsResult.mode
     };
 
-    // Include OTP in development mode or if SMS failed
-    if (process.env.NODE_ENV === 'development' || !smsResult.success) {
-      response.dev_otp = otp;
-    }
-
-    // Include SMS details for debugging
-    if (smsResult.mode === 'production') {
-      response.sms_sid = smsResult.sid;
+    // Include SMS details for debugging (but NOT the OTP itself)
+    if (smsResult.mode === 'production' || smsResult.mode === 'sandbox') {
+      if (smsResult.messageId) {
+        response.message_id = smsResult.messageId;
+      }
     } else if (smsResult.mode === 'fallback') {
       response.sms_error = smsResult.error;
-      response.fallback_note = 'SMS failed, check console for OTP';
+      response.fallback_note = 'SMS failed, check Africa\'s Talking dashboard or server console';
     }
 
     res.status(201).json(response);
@@ -259,26 +243,51 @@ const verifyOTP = async (req, res) => {
       });
     }
 
+    const otpRecord = otpResult.rows[0];
+
     // Mark OTP as verified
     await client.query(
       'UPDATE otp_verifications SET is_verified = true WHERE id = $1',
-      [otpResult.rows[0].id]
+      [otpRecord.id]
     );
 
-    // Get user
-    const userResult = await client.query(
+    // Check if user already exists (for existing owners using login-owner flow)
+    let userResult = await client.query(
       'SELECT id, shop_id, full_name, phone, role FROM users WHERE phone = $1 AND role = $2',
       [phone, 'OWNER']
     );
 
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'User not found' 
-      });
-    }
+    let user;
 
-    const user = userResult.rows[0];
+    if (userResult.rows.length === 0) {
+      // NEW REGISTRATION: Create shop and user now (after OTP verification)
+      if (!otpRecord.full_name || !otpRecord.shop_name) {
+        return res.status(400).json({
+          success: false,
+          message: 'Registration data not found. Please register again.'
+        });
+      }
+
+      // Create shop
+      const shopResult = await client.query(
+        'INSERT INTO shops (shop_name, owner_phone) VALUES ($1, $2) RETURNING id',
+        [otpRecord.shop_name, phone]
+      );
+      const shopId = shopResult.rows[0].id;
+
+      // Create owner user
+      const newUserResult = await client.query(
+        'INSERT INTO users (shop_id, full_name, phone, role) VALUES ($1, $2, $3, $4) RETURNING id, shop_id, full_name, phone, role',
+        [shopId, otpRecord.full_name, phone, 'OWNER']
+      );
+
+      user = newUserResult.rows[0];
+      console.log(`[SECURITY] New owner created after OTP verification: ${user.full_name}, phone: ${phone}, shop: ${otpRecord.shop_name}`);
+    } else {
+      // EXISTING OWNER: Using login-owner flow
+      user = userResult.rows[0];
+      console.log(`[SECURITY] Existing owner verified OTP: ${user.full_name}, phone: ${phone}`);
+    }
 
     // Update last login
     await client.query(
@@ -910,7 +919,6 @@ const getSMSStatus = async (req, res) => {
 
 module.exports = {
   registerOwner,
-  loginOwner,
   verifyOTP,
   setPIN,
   loginOwnerWithPIN,

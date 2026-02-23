@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const {
   registerOwner,
-  loginOwner,
   verifyOTP,
   setPIN,
   loginOwnerWithPIN,
@@ -16,9 +15,6 @@ const { authenticateJWT, requireOwner } = require('../middleware/auth');
 
 // Owner Registration (NEW OWNERS - Step 1: Send OTP)
 router.post('/register-owner', registerOwner);
-
-// Owner Login (EXISTING OWNERS - Step 1: Send OTP)
-router.post('/login-owner', loginOwner);
 
 // Owner OTP Verification (Step 2: Verify OTP)
 router.post('/verify-otp', verifyOTP);
