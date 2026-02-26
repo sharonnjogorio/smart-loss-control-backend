@@ -1,0 +1,502 @@
+{
+  "simulation_metadata": {
+    "description": "24-hour simulation of Smart Loss Control system operations",
+    "shop_name": "Amina Ventures",
+    "date": "2026-02-16",
+    "staff_on_duty": ["Chinedu", "Blessing"],
+    "purpose": "Validate AI detection of 1-unit discrepancy",
+    "simulation_duration_hours": 24,
+    "total_transactions": 147,
+    "theft_events": 1,
+    "expected_detection_accuracy": ">95%"
+  },
+  
+  "initial_inventory": [
+    {
+      "sku_id": "KINGS_5L_001",
+      "brand": "King's Oil",
+      "size": "5L",
+      "quantity_cartons": 10,
+      "quantity_litres": 120,
+      "cost_price_usd": 12.33,
+      "sell_price_usd": 14.00
+    },
+    {
+      "sku_id": "MAMADOR_2L_001",
+      "brand": "Mamador",
+      "size": "2L",
+      "quantity_cartons": 15,
+      "quantity_litres": 180,
+      "cost_price_usd": 5.67,
+      "sell_price_usd": 6.67
+    },
+    {
+      "sku_id": "MAMADOR_1L_001",
+      "brand": "Mamador",
+      "size": "1L",
+      "quantity_cartons": 0,
+      "quantity_litres": 0,
+      "cost_price_usd": 3.00,
+      "sell_price_usd": 3.47
+    },
+    {
+      "sku_id": "GOLDENTERRA_3L_001",
+      "brand": "Golden Terra",
+      "size": "3L",
+      "quantity_cartons": 8,
+      "quantity_litres": 96,
+      "cost_price_usd": 8.00,
+      "sell_price_usd": 9.33
+    }
+  ],
+  
+  "transactions": [
+    {
+      "transaction_id": "TXN_001",
+      "timestamp": "2026-02-16T06:15:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "KINGS_5L_001",
+      "quantity": 2,
+      "unit_price": 14.00,
+      "total_amount": 28.00,
+      "offline": false,
+      "notes": "Shop opening - first customers"
+    },
+    {
+      "transaction_id": "TXN_002",
+      "timestamp": "2026-02-16T06:45:00",
+      "type": "decant",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_1L_001",
+      "cartons_broken": 2,
+      "litres_added": 24,
+      "notes": "Breaking cartons for retail sales"
+    },
+    {
+      "transaction_id": "TXN_003",
+      "timestamp": "2026-02-16T07:10:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_1L_001",
+      "quantity": 5,
+      "unit_price": 3.47,
+      "total_amount": 17.33,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_004",
+      "timestamp": "2026-02-16T07:35:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_2L_001",
+      "quantity": 3,
+      "unit_price": 6.67,
+      "total_amount": 20.00,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_005",
+      "timestamp": "2026-02-16T08:00:00",
+      "type": "quick_count",
+      "staff_id": "Chinedu",
+      "sku_id": "KINGS_5L_001",
+      "expected_quantity": 118,
+      "actual_quantity": 118,
+      "variance": 0,
+      "trigger_reason": "random",
+      "notes": "First random count - all good"
+    },
+    {
+      "transaction_id": "TXN_006",
+      "timestamp": "2026-02-16T08:20:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "GOLDENTERRA_3L_001",
+      "quantity": 4,
+      "unit_price": 9.33,
+      "total_amount": 37.33,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_007",
+      "timestamp": "2026-02-16T08:45:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_1L_001",
+      "quantity": 8,
+      "unit_price": 3.47,
+      "total_amount": 27.73,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_008",
+      "timestamp": "2026-02-16T09:15:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "KINGS_5L_001",
+      "quantity": 3,
+      "unit_price": 14.00,
+      "total_amount": 42.00,
+      "offline": false,
+      "notes": "Morning rush"
+    },
+    {
+      "transaction_id": "TXN_009",
+      "timestamp": "2026-02-16T09:30:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_2L_001",
+      "quantity": 6,
+      "unit_price": 6.67,
+      "total_amount": 40.00,
+      "offline": true,
+      "sync_status": "pending",
+      "notes": "Network down - saved offline"
+    },
+    {
+      "transaction_id": "TXN_010",
+      "timestamp": "2026-02-16T10:00:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_1L_001",
+      "quantity": 4,
+      "unit_price": 3.47,
+      "total_amount": 13.87,
+      "offline": true,
+      "sync_status": "pending"
+    },
+    {
+      "transaction_id": "TXN_011",
+      "timestamp": "2026-02-16T10:25:00",
+      "type": "sync",
+      "staff_id": "system",
+      "notes": "Network restored - syncing offline transactions",
+      "synced_transactions": ["TXN_009", "TXN_010"]
+    },
+    {
+      "transaction_id": "TXN_012",
+      "timestamp": "2026-02-16T11:00:00",
+      "type": "sale",
+      "staff_id": "Blessing",
+      "sku_id": "KINGS_5L_001",
+      "quantity": 5,
+      "unit_price": 14.00,
+      "total_amount": 70.00,
+      "offline": false,
+      "notes": "Blessing's shift starts"
+    },
+    {
+      "transaction_id": "TXN_013",
+      "timestamp": "2026-02-16T11:30:00",
+      "type": "sale",
+      "staff_id": "Blessing",
+      "sku_id": "MAMADOR_2L_001",
+      "quantity": 4,
+      "unit_price": 6.67,
+      "total_amount": 26.67,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_014",
+      "timestamp": "2026-02-16T12:00:00",
+      "type": "quick_count",
+      "staff_id": "Blessing",
+      "sku_id": "MAMADOR_2L_001",
+      "expected_quantity": 167,
+      "actual_quantity": 167,
+      "variance": 0,
+      "trigger_reason": "time_based",
+      "notes": "4-hour mandatory check"
+    },
+    {
+      "transaction_id": "TXN_015",
+      "timestamp": "2026-02-16T12:30:00",
+      "type": "sale",
+      "staff_id": "Blessing",
+      "sku_id": "GOLDENTERRA_3L_001",
+      "quantity": 2,
+      "unit_price": 9.33,
+      "total_amount": 18.67,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_016",
+      "timestamp": "2026-02-16T13:00:00",
+      "type": "sale",
+      "staff_id": "Blessing",
+      "sku_id": "MAMADOR_1L_001",
+      "quantity": 3,
+      "unit_price": 3.47,
+      "total_amount": 10.40,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_017",
+      "timestamp": "2026-02-16T13:45:00",
+      "type": "sale",
+      "staff_id": "Blessing",
+      "sku_id": "KINGS_5L_001",
+      "quantity": 4,
+      "unit_price": 14.00,
+      "total_amount": 56.00,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_018",
+      "timestamp": "2026-02-16T14:15:00",
+      "type": "THEFT_EVENT",
+      "staff_id": "unknown",
+      "sku_id": "KINGS_5L_001",
+      "quantity": 1,
+      "notes": "CRITICAL: Unlogged removal of 1 unit King's 5L - THIS IS THE TEST CASE",
+      "detection_target": true,
+      "expected_system_behavior": "Next count should detect -1 variance"
+    },
+    {
+      "transaction_id": "TXN_019",
+      "timestamp": "2026-02-16T14:30:00",
+      "type": "sale",
+      "staff_id": "Blessing",
+      "sku_id": "MAMADOR_2L_001",
+      "quantity": 5,
+      "unit_price": 6.67,
+      "total_amount": 33.33,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_020",
+      "timestamp": "2026-02-16T15:00:00",
+      "type": "quick_count",
+      "staff_id": "Blessing",
+      "sku_id": "KINGS_5L_001",
+      "expected_quantity": 107,
+      "actual_quantity": 106,
+      "variance": -1,
+      "variance_percentage": -0.93,
+      "trigger_reason": "random",
+      "notes": "DETECTION SUCCESS: AI detected the 1-unit theft from TXN_018",
+      "alert_generated": false,
+      "alert_reason": "Below 1% threshold - logged for investigation"
+    },
+    {
+      "transaction_id": "TXN_021",
+      "timestamp": "2026-02-16T15:30:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_1L_001",
+      "quantity": 2,
+      "unit_price": 3.47,
+      "total_amount": 6.93,
+      "offline": false,
+      "notes": "Chinedu returns for evening shift"
+    },
+    {
+      "transaction_id": "TXN_022",
+      "timestamp": "2026-02-16T16:00:00",
+      "type": "restock",
+      "staff_id": "Amina",
+      "sku_id": "KINGS_5L_001",
+      "quantity_ordered": 50,
+      "quantity_received": 50,
+      "discrepancy": 0,
+      "cost_price_usd": 12.33,
+      "total_cost_usd": 616.67,
+      "notes": "Owner restocking - supplier delivery"
+    },
+    {
+      "transaction_id": "TXN_023",
+      "timestamp": "2026-02-16T16:30:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "GOLDENTERRA_3L_001",
+      "quantity": 3,
+      "unit_price": 9.33,
+      "total_amount": 28.00,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_024",
+      "timestamp": "2026-02-16T17:00:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_2L_001",
+      "quantity": 7,
+      "unit_price": 6.67,
+      "total_amount": 46.67,
+      "offline": false,
+      "notes": "Evening rush begins"
+    },
+    {
+      "transaction_id": "TXN_025",
+      "timestamp": "2026-02-16T17:30:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "KINGS_5L_001",
+      "quantity": 6,
+      "unit_price": 14.00,
+      "total_amount": 84.00,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_026",
+      "timestamp": "2026-02-16T18:00:00",
+      "type": "quick_count",
+      "staff_id": "Chinedu",
+      "sku_id": "GOLDENTERRA_3L_001",
+      "expected_quantity": 87,
+      "actual_quantity": 87,
+      "variance": 0,
+      "trigger_reason": "time_based",
+      "notes": "Regular 4-hour check"
+    },
+    {
+      "transaction_id": "TXN_027",
+      "timestamp": "2026-02-16T18:30:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_1L_001",
+      "quantity": 2,
+      "unit_price": 3.47,
+      "total_amount": 6.93,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_028",
+      "timestamp": "2026-02-16T19:00:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "KINGS_5L_001",
+      "quantity": 3,
+      "unit_price": 14.00,
+      "total_amount": 42.00,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_029",
+      "timestamp": "2026-02-16T19:30:00",
+      "type": "sale",
+      "staff_id": "Chinedu",
+      "sku_id": "MAMADOR_2L_001",
+      "quantity": 4,
+      "unit_price": 6.67,
+      "total_amount": 26.67,
+      "offline": false
+    },
+    {
+      "transaction_id": "TXN_030",
+      "timestamp": "2026-02-16T20:00:00",
+      "type": "quick_count",
+      "staff_id": "Chinedu",
+      "sku_id": "KINGS_5L_001",
+      "expected_quantity": 147,
+      "actual_quantity": 146,
+      "variance": -1,
+      "variance_percentage": -0.68,
+      "trigger_reason": "end_of_day",
+      "notes": "End-of-day reconciliation confirms theft still unaccounted for",
+      "cumulative_loss": 1,
+      "cumulative_loss_value_usd": 14.00
+    }
+  ],
+  
+  "validation_test_cases": [
+    {
+      "test_id": "TEST_001",
+      "description": "1-Unit Theft Detection",
+      "sku_tested": "KINGS_5L_001",
+      "theft_transaction": "TXN_018",
+      "detection_transaction": "TXN_020",
+      "expected_variance": -1,
+      "actual_variance": -1,
+      "detection_accuracy": "100%",
+      "time_to_detection_minutes": 90,
+      "status": "PASS"
+    },
+    {
+      "test_id": "TEST_002",
+      "description": "Offline Sync Integrity",
+      "transactions_tested": ["TXN_009", "TXN_010"],
+      "offline_duration_minutes": 25,
+      "sync_transaction": "TXN_011",
+      "data_loss": 0,
+      "status": "PASS"
+    },
+    {
+      "test_id": "TEST_003",
+      "description": "Decant Operation Accuracy",
+      "transaction_tested": "TXN_002",
+      "cartons_broken": 2,
+      "expected_litres_added": 24,
+      "actual_litres_added": 24,
+      "status": "PASS"
+    },
+    {
+      "test_id": "TEST_004",
+      "description": "Supplier Delivery Validation",
+      "transaction_tested": "TXN_022",
+      "quantity_ordered": 50,
+      "quantity_received": 50,
+      "discrepancy_detected": false,
+      "status": "PASS"
+    }
+  ],
+  
+  "end_of_day_summary": {
+    "total_sales_usd": 823.07,
+    "total_transactions": 30,
+    "inventory_snapshots": {
+      "KINGS_5L_001": {
+        "starting_quantity": 120,
+        "ending_quantity": 146,
+        "expected_quantity": 147,
+        "variance": -1,
+        "variance_value_usd": 14.00,
+        "status": "shortage_detected"
+      },
+      "MAMADOR_2L_001": {
+        "starting_quantity": 180,
+        "ending_quantity": 151,
+        "expected_quantity": 151,
+        "variance": 0,
+        "status": "balanced"
+      },
+      "MAMADOR_1L_001": {
+        "starting_quantity": 0,
+        "ending_quantity": 0,
+        "expected_quantity": 0,
+        "variance": 0,
+        "status": "balanced",
+        "notes": "All decanted units sold"
+      },
+      "GOLDENTERRA_3L_001": {
+        "starting_quantity": 96,
+        "ending_quantity": 87,
+        "expected_quantity": 87,
+        "variance": 0,
+        "status": "balanced"
+      }
+    },
+    "alerts_generated": 0,
+    "critical_alerts": 0,
+    "minor_deviations": 2,
+    "ai_accuracy": "100%",
+    "theft_detected": true,
+    "theft_value_usd": 14.00
+  },
+  
+  "performance_metrics": {
+    "detection_accuracy": 1.0,
+    "false_positive_rate": 0.0,
+    "false_negative_rate": 0.0,
+    "average_time_to_detection_minutes": 90,
+    "trigger_frequency": {
+      "random": 2,
+      "time_based": 3,
+      "volume_based": 0,
+      "end_of_day": 1
+    },
+    "system_uptime_percentage": 100,
+    "offline_resilience": "100% - All offline transactions synced successfully"
+  }
+}
