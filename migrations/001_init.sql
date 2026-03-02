@@ -8,7 +8,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ============================================
 -- SHOPS
 -- ============================================
-CREATE TABLE shops (
+CREATE TABLE IF NOT EXISTS shops (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_name VARCHAR(150) NOT NULL,
     owner_phone VARCHAR(20) UNIQUE NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE shops (
 -- ============================================
 -- USERS (OWNER / STAFF)
 -- ============================================
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
     full_name VARCHAR(150) NOT NULL,
@@ -35,13 +35,13 @@ CREATE TABLE users (
 
 COMMENT ON COLUMN users.pin_hash IS 'Stores the hashed version of a strictly 4-digit numeric PIN (e.g., 1234).';
 
-CREATE UNIQUE INDEX unique_users_phone_per_shop ON users(shop_id, phone);
-CREATE INDEX idx_users_shop_id ON users(shop_id);
+CREATE UNIQUE INDEX IF NOT EXISTS unique_users_phone_per_shop ON users(shop_id, phone);
+CREATE INDEX IF NOT EXISTS idx_users_shop_id ON users(shop_id);
 
 -- ============================================
 -- DEVICES (QR ONBOARDING & WHITELISTING)
 -- ============================================
-CREATE TABLE devices (
+CREATE TABLE IF NOT EXISTS devices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_id TEXT NOT NULL, 
@@ -54,7 +54,7 @@ CREATE TABLE devices (
 -- ============================================
 -- SKUS (PRODUCT MASTER LIST)
 -- ============================================
-CREATE TABLE skus (
+CREATE TABLE IF NOT EXISTS skus (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     brand VARCHAR(100) NOT NULL, 
     size VARCHAR(50) NOT NULL,  
@@ -67,7 +67,7 @@ CREATE TABLE skus (
 -- ============================================
 -- INVENTORY (CURRENT STOCK STATE)
 -- ============================================
-CREATE TABLE inventory (
+CREATE TABLE IF NOT EXISTS inventory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
     sku_id UUID NOT NULL REFERENCES skus(id) ON DELETE CASCADE,
@@ -97,7 +97,7 @@ EXECUTE FUNCTION update_inventory_timestamp();
 -- ============================================
 -- TRANSACTIONS (IMMUTABLE LOG WITH OFFLINE SUPPORT)
 -- ============================================
-CREATE TABLE transactions (
+CREATE TABLE IF NOT EXISTS transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -113,15 +113,15 @@ CREATE TABLE transactions (
     UNIQUE(shop_id, offline_ref)
 );
 
-CREATE INDEX idx_transactions_occurred_at ON transactions(occurred_at);
-CREATE INDEX idx_transactions_shop_id ON transactions(shop_id);
-CREATE INDEX idx_transactions_sku_id ON transactions(sku_id);
-CREATE INDEX idx_transactions_type_occurred ON transactions(type, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_transactions_occurred_at ON transactions(occurred_at);
+CREATE INDEX IF NOT EXISTS idx_transactions_shop_id ON transactions(shop_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_sku_id ON transactions(sku_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_type_occurred ON transactions(type, occurred_at);
 
 -- ============================================
 -- AUDIT LOGS (EXPECTED VS ACTUAL COUNT)
 -- ============================================
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL, 
@@ -161,13 +161,13 @@ CREATE TRIGGER trg_audit_severity
 BEFORE INSERT ON audit_logs
 FOR EACH ROW EXECUTE FUNCTION check_audit_severity();
 
-CREATE INDEX idx_audit_logs_shop_sku ON audit_logs(shop_id, sku_id);
-CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_shop_sku ON audit_logs(shop_id, sku_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
 
 -- ============================================
 -- ALERTS & SEVERITY LOGIC
 -- ============================================
-CREATE TABLE alerts (
+CREATE TABLE IF NOT EXISTS alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
     sku_id UUID REFERENCES skus(id) ON DELETE SET NULL,
@@ -194,13 +194,13 @@ AFTER INSERT ON audit_logs
 FOR EACH ROW
 EXECUTE FUNCTION create_alert_if_critical();
 
-CREATE INDEX idx_alerts_unresolved ON alerts(shop_id, is_resolved) WHERE is_resolved = FALSE;
-CREATE INDEX idx_alerts_created_at ON alerts(created_at);
+CREATE INDEX IF NOT EXISTS idx_alerts_unresolved ON alerts(shop_id, is_resolved) WHERE is_resolved = FALSE;
+CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at);
 
 -- ============================================
 -- RESTOCKS & DECANTS
 -- ============================================
-CREATE TABLE restocks (
+CREATE TABLE IF NOT EXISTS restocks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -213,7 +213,7 @@ CREATE TABLE restocks (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE decants (
+CREATE TABLE IF NOT EXISTS decants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -228,7 +228,7 @@ CREATE TABLE decants (
 -- ============================================
 -- OTP VERIFICATIONS (OWNER ONBOARDING)
 -- ============================================
-CREATE TABLE otp_verifications (
+CREATE TABLE IF NOT EXISTS otp_verifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     phone VARCHAR(20) NOT NULL,
     otp_code VARCHAR(6) NOT NULL,
@@ -239,15 +239,15 @@ CREATE TABLE otp_verifications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_otp_phone_verified ON otp_verifications(phone, is_verified);
-CREATE INDEX idx_otp_expires_at ON otp_verifications(expires_at);
+CREATE INDEX IF NOT EXISTS idx_otp_phone_verified ON otp_verifications(phone, is_verified);
+CREATE INDEX IF NOT EXISTS idx_otp_expires_at ON otp_verifications(expires_at);
 
 COMMENT ON TABLE otp_verifications IS 'Stores OTP codes for owner registration verification (PRD Section 5.5 Phase 1.1)';
 
 -- ============================================
 -- SESSIONS (12-HOUR AUTO-LOGOUT)
 -- ============================================
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     device_id TEXT NOT NULL,
@@ -256,15 +256,15 @@ CREATE TABLE sessions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_sessions_user_device ON sessions(user_id, device_id);
-CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_device ON sessions(user_id, device_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 
 COMMENT ON TABLE sessions IS 'Session management for 12-hour auto-logout (PRD NFR Security requirement)';
 
 -- ============================================
 -- QR CODES (ONE-TIME-USE STAFF LINKING)
 -- ============================================
-CREATE TABLE qr_codes (
+CREATE TABLE IF NOT EXISTS qr_codes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
     code TEXT UNIQUE NOT NULL,
@@ -273,15 +273,15 @@ CREATE TABLE qr_codes (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_qr_codes_shop_id ON qr_codes(shop_id);
-CREATE INDEX idx_qr_codes_code_used ON qr_codes(code, is_used) WHERE is_used = FALSE;
+CREATE INDEX IF NOT EXISTS idx_qr_codes_shop_id ON qr_codes(shop_id);
+CREATE INDEX IF NOT EXISTS idx_qr_codes_code_used ON qr_codes(code, is_used) WHERE is_used = FALSE;
 
 COMMENT ON TABLE qr_codes IS 'One-time-use QR codes for secure staff onboarding (PRD Section 3.1.C)';
 
 -- ============================================
 -- NOTIFICATION LOGS (WHATSAPP ALERT TRACKING)
 -- ============================================
-CREATE TABLE notification_logs (
+CREATE TABLE IF NOT EXISTS notification_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     alert_id UUID REFERENCES alerts(id) ON DELETE CASCADE,
     recipient_phone VARCHAR(20) NOT NULL,
@@ -294,15 +294,15 @@ CREATE TABLE notification_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_notification_logs_alert_id ON notification_logs(alert_id);
-CREATE INDEX idx_notification_logs_status ON notification_logs(status);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_alert_id ON notification_logs(alert_id);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_status ON notification_logs(status);
 
 COMMENT ON TABLE notification_logs IS 'Tracks WhatsApp/SMS alert delivery status (PRD Section 5.7.6)';
 
 -- ============================================
 -- SALES VELOCITY METRICS (AI ANOMALY DETECTION)
 -- ============================================
-CREATE TABLE sales_velocity_metrics (
+CREATE TABLE IF NOT EXISTS sales_velocity_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     shop_id UUID NOT NULL REFERENCES shops(id) ON DELETE CASCADE,
     sku_id UUID NOT NULL REFERENCES skus(id) ON DELETE CASCADE,
@@ -315,12 +315,12 @@ CREATE TABLE sales_velocity_metrics (
     UNIQUE(shop_id, sku_id, time_window, period_start)
 );
 
-CREATE INDEX idx_velocity_shop_sku_period ON sales_velocity_metrics(shop_id, sku_id, period_start);
+CREATE INDEX IF NOT EXISTS idx_velocity_shop_sku_period ON sales_velocity_metrics(shop_id, sku_id, period_start);
 
 COMMENT ON TABLE sales_velocity_metrics IS 'Tracks sales velocity for AI anomaly detection (PRD Section 5.7.4 - 2x average trigger)';
 
 -- ============================================
 -- ADDITIONAL INDEXES FOR PERFORMANCE
 -- ============================================
-CREATE INDEX idx_restocks_shop_created ON restocks(shop_id, created_at);
-CREATE INDEX idx_decants_shop_created ON decants(shop_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_restocks_shop_created ON restocks(shop_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_decants_shop_created ON decants(shop_id, created_at);

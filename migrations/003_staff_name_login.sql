@@ -10,7 +10,7 @@
 
 -- Create unique index for staff names within each shop
 -- This ensures no two staff members in the same shop have the same name
-CREATE UNIQUE INDEX unique_staff_name_per_shop 
+CREATE UNIQUE INDEX IF NOT EXISTS unique_staff_name_per_shop 
 ON users(shop_id, full_name) 
 WHERE role = 'STAFF';
 
