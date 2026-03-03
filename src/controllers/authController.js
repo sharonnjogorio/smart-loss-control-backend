@@ -110,7 +110,8 @@ const registerOwner = async (req, res) => {
     const response = {
       success: true,
       message: `Registration successful! OTP sent to ${phone}`,
-      sms_status: smsResult.mode
+      sms_status: smsResult.mode,
+      dev_otp: process.env.NODE_ENV === 'development' ? otp : undefined
     };
 
     // Include SMS details for debugging (but NOT the OTP itself)
@@ -198,7 +199,8 @@ const loginOwner = async (req, res) => {
       message: `OTP sent to ${phone}`,
       owner_name: owner.full_name,
       shop_name: owner.shop_name,
-      sms_status: smsResult.mode
+      sms_status: smsResult.mode,
+    
     };
 
     // Include OTP in development mode or if SMS failed
