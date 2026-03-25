@@ -147,17 +147,28 @@ const verifyPhysicalCount = async (req, res) => {
         ? `Missing ${Math.abs(variance)} units of ${sku.brand} ${sku.size}`
         : `Excess ${variance} units of ${sku.brand} ${sku.size}`;
 
-        const alertResult = await client.query(
+              const alertResult = await client.query(
         `INSERT INTO alerts 
-          (shop_id, sku_id, audit_log_id, deviation, estimated_loss)
-         VALUES ($1, $2, $3, $4, $5)
+        (shop_id, sku_id, audit_log_id, deviation, estimated_loss, type, severity, message, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id`,
         [
           shop_id,
           sku_id,
           auditLogId,
           variance,
-          estimatedLoss
+          estimatedLoss,
+          'VARIANCE_DETECTED',
+          alertLevel,
+          alertMessage,
+          JSON.stringify({
+            audit_log_id: auditLogId,
+            expected_stock: expectedStock,
+            physical_count: physicalCount,
+            variance,
+            variance_percent: variancePercent,
+            counted_by: user_id
+          })
         ]
       );
 
