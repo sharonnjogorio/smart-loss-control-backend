@@ -158,21 +158,19 @@ const getAlertsSummary = async (req, res) => {
     const { shop_id } = req.user;
     const { days = 7 } = req.query;
 
-    const summaryQuery = `
+        const summaryQuery = `
       SELECT 
-        CASE 
-          WHEN ABS(deviation) >= 10 THEN 'CRITICAL'
-          WHEN ABS(deviation) >= 5 THEN 'WARNING'
-          ELSE 'MINOR'
-        END as severity,
+        severity,
         COUNT(*) as count,
         SUM(estimated_loss) as total_loss,
         COUNT(*) FILTER (WHERE is_resolved = false) as active_count
       FROM alerts
       WHERE shop_id = $1
         AND created_at >= NOW() - INTERVAL '${parseInt(days)} days'
+        AND severity IS NOT NULL
       GROUP BY severity
     `;
+
 
     const result = await client.query(summaryQuery, [shop_id]);
 
