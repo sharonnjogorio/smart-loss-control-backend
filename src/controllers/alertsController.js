@@ -1,9 +1,5 @@
 const { pool } = require('../config/db');
 
-/**
- * Get Alerts for Current Shop
- * Returns alerts with optional filters
- */
 const getAlerts = async (req, res) => {
   const client = await pool.connect();
   
@@ -20,25 +16,29 @@ const getAlerts = async (req, res) => {
 
     const offset = (page - 1) * limit;
 
-    // Build query based on filters
     let query = `
       SELECT 
         a.id,
         a.sku_id,
+        a.audit_log_id,
         a.type,
         a.severity,
         a.message,
         a.estimated_loss,
         a.metadata,
+        a.deviation,
         a.is_resolved,
         a.resolved_at,
         a.created_at,
         s.brand,
         s.size,
+        al.expected_qty,
+        al.actual_qty,
+        al.deviation_percent,
         u.full_name as staff_name
       FROM alerts a
       JOIN skus s ON a.sku_id = s.id
-      LEFT JOIN audit_logs al ON (a.metadata->>'audit_log_id')::uuid = al.id
+      LEFT JOIN audit_logs al ON a.audit_log_id = al.id
       LEFT JOIN users u ON al.user_id = u.id
       WHERE a.shop_id = $1
     `;
@@ -46,21 +46,18 @@ const getAlerts = async (req, res) => {
     const params = [shop_id];
     let paramCount = 1;
 
-    // Add status filter
     if (status === 'active') {
       query += ` AND a.is_resolved = false`;
     } else if (status === 'resolved') {
       query += ` AND a.is_resolved = true`;
     }
 
-    // Add severity filter
     if (severity) {
       paramCount++;
       query += ` AND a.severity = $${paramCount}`;
       params.push(severity.toUpperCase());
     }
 
-    // Add date range filter
     if (start_date) {
       paramCount++;
       query += ` AND a.created_at >= $${paramCount}`;
@@ -78,7 +75,6 @@ const getAlerts = async (req, res) => {
 
     const result = await client.query(query, params);
 
-    // Get total count for pagination
     let countQuery = `SELECT COUNT(*) FROM alerts WHERE shop_id = $1`;
     const countParams = [shop_id];
     let countParamCount = 1;
@@ -113,6 +109,7 @@ const getAlerts = async (req, res) => {
     const alerts = result.rows.map(alert => ({
       id: alert.id,
       sku_id: alert.sku_id,
+      audit_log_id: alert.audit_log_id,
       type: alert.type,
       severity: alert.severity,
       message: alert.message,
@@ -120,16 +117,15 @@ const getAlerts = async (req, res) => {
         brand: alert.brand,
         size: alert.size
       },
-      expected_count: alert.metadata?.expected_stock,
-      actual_count: alert.metadata?.physical_count,
-      variance: alert.metadata?.variance,
-      variance_percent: alert.metadata?.variance_percent,
+      expected_count: alert.expected_qty != null ? parseInt(alert.expected_qty) : null,
+      actual_count: alert.actual_qty != null ? parseInt(alert.actual_qty) : null,
+      variance: alert.deviation != null ? parseInt(alert.deviation) : null,
+      variance_percent: alert.deviation_percent != null ? parseFloat(alert.deviation_percent) : null,
       estimated_loss: parseFloat(alert.estimated_loss || 0),
       is_resolved: alert.is_resolved,
       resolved_at: alert.resolved_at,
       staff_name: alert.staff_name,
-      created_at: alert.created_at,
-      audit_log_id: alert.metadata?.audit_log_id
+      created_at: alert.created_at
     }));
 
     res.json({
@@ -155,10 +151,6 @@ const getAlerts = async (req, res) => {
   }
 };
 
-/**
- * Get Alert Summary (for dashboard)
- * Returns counts by severity and total loss
- */
 const getAlertsSummary = async (req, res) => {
   const client = await pool.connect();
   
@@ -166,7 +158,6 @@ const getAlertsSummary = async (req, res) => {
     const { shop_id } = req.user;
     const { days = 7 } = req.query;
 
-    // Get counts by severity
     const summaryQuery = `
       SELECT 
         CASE 
@@ -185,14 +176,10 @@ const getAlertsSummary = async (req, res) => {
 
     const result = await client.query(summaryQuery, [shop_id]);
 
-    // Get total active alerts
-    const totalActiveQuery = `
-      SELECT COUNT(*) as total
-      FROM alerts
-      WHERE shop_id = $1 AND is_resolved = false
-    `;
-
-    const totalActiveResult = await client.query(totalActiveQuery, [shop_id]);
+    const totalActiveResult = await client.query(
+      `SELECT COUNT(*) as total FROM alerts WHERE shop_id = $1 AND is_resolved = false`,
+      [shop_id]
+    );
 
     const summary = {
       total_active: parseInt(totalActiveResult.rows[0].total),
@@ -209,10 +196,7 @@ const getAlertsSummary = async (req, res) => {
       summary.total_loss_last_7_days += parseFloat(row.total_loss || 0);
     });
 
-    res.json({
-      success: true,
-      summary
-    });
+    res.json({ success: true, summary });
 
   } catch (error) {
     console.error('Get alerts summary error:', error);
@@ -226,10 +210,6 @@ const getAlertsSummary = async (req, res) => {
   }
 };
 
-/**
- * Get Single Alert Details
- * Returns full alert details including audit log
- */
 const getAlertDetails = async (req, res) => {
   const client = await pool.connect();
   
@@ -241,11 +221,13 @@ const getAlertDetails = async (req, res) => {
       SELECT 
         a.id,
         a.sku_id,
+        a.audit_log_id,
         a.type,
         a.severity,
         a.message,
         a.estimated_loss,
         a.metadata,
+        a.deviation,
         a.is_resolved,
         a.resolved_at,
         a.created_at,
@@ -253,14 +235,13 @@ const getAlertDetails = async (req, res) => {
         s.size,
         al.expected_qty,
         al.actual_qty,
-        al.variance,
-        al.variance_percent,
+        al.deviation_percent,
         al.created_at as counted_at,
         u.full_name as staff_name,
         u.phone as staff_phone
       FROM alerts a
       JOIN skus s ON a.sku_id = s.id
-      LEFT JOIN audit_logs al ON (a.metadata->>'audit_log_id')::uuid = al.id
+      LEFT JOIN audit_logs al ON a.audit_log_id = al.id
       LEFT JOIN users u ON al.user_id = u.id
       WHERE a.id = $1 AND a.shop_id = $2
     `;
@@ -268,10 +249,7 @@ const getAlertDetails = async (req, res) => {
     const result = await client.query(query, [id, shop_id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Alert not found'
-      });
+      return res.status(404).json({ success: false, message: 'Alert not found' });
     }
 
     const alert = result.rows[0];
@@ -281,6 +259,7 @@ const getAlertDetails = async (req, res) => {
       alert: {
         id: alert.id,
         sku_id: alert.sku_id,
+        audit_log_id: alert.audit_log_id,
         type: alert.type,
         severity: alert.severity,
         message: alert.message,
@@ -288,10 +267,10 @@ const getAlertDetails = async (req, res) => {
           brand: alert.brand,
           size: alert.size
         },
-        expected_count: parseInt(alert.expected_qty),
-        actual_count: parseInt(alert.actual_qty),
-        variance: parseInt(alert.variance),
-        variance_percent: parseFloat(alert.variance_percent),
+        expected_count: alert.expected_qty != null ? parseInt(alert.expected_qty) : null,
+        actual_count: alert.actual_qty != null ? parseInt(alert.actual_qty) : null,
+        variance: alert.deviation != null ? parseInt(alert.deviation) : null,
+        variance_percent: alert.deviation_percent != null ? parseFloat(alert.deviation_percent) : null,
         estimated_loss: parseFloat(alert.estimated_loss || 0),
         is_resolved: alert.is_resolved,
         resolved_at: alert.resolved_at,
@@ -317,10 +296,6 @@ const getAlertDetails = async (req, res) => {
   }
 };
 
-/**
- * Resolve an Alert
- * Owner only - marks alert as resolved
- */
 const resolveAlert = async (req, res) => {
   const client = await pool.connect();
   
@@ -329,7 +304,6 @@ const resolveAlert = async (req, res) => {
     const { id } = req.params;
     const { notes } = req.body;
 
-    // Only owners can resolve alerts
     if (role !== 'OWNER') {
       return res.status(403).json({
         success: false,
@@ -337,40 +311,27 @@ const resolveAlert = async (req, res) => {
       });
     }
 
-    // Check if alert exists and belongs to this shop
     const checkResult = await client.query(
       'SELECT id, metadata FROM alerts WHERE id = $1 AND shop_id = $2',
       [id, shop_id]
     );
 
     if (checkResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Alert not found'
-      });
+      return res.status(404).json({ success: false, message: 'Alert not found' });
     }
 
-    // Update metadata with notes if provided
     let metadata = checkResult.rows[0].metadata || {};
     if (notes) {
       metadata.resolution_notes = notes;
       metadata.resolved_by = req.user.id;
     }
 
-    // Update alert status
     await client.query(
-      `UPDATE alerts 
-       SET is_resolved = true, 
-           resolved_at = NOW(),
-           metadata = $1
-       WHERE id = $2`,
+      `UPDATE alerts SET is_resolved = true, resolved_at = NOW(), metadata = $1 WHERE id = $2`,
       [JSON.stringify(metadata), id]
     );
 
-    res.json({
-      success: true,
-      message: 'Alert resolved successfully'
-    });
+    res.json({ success: true, message: 'Alert resolved successfully' });
 
   } catch (error) {
     console.error('Resolve alert error:', error);
