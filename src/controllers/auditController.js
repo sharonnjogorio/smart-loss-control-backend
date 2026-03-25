@@ -133,6 +133,7 @@ const verifyPhysicalCount = async (req, res) => {
         variance,
         variancePercent,
         'MANUAL',  // trigger_type
+        estimatedLoss,
         counted_at || new Date().toISOString()
       ]
     );
