@@ -122,7 +122,7 @@ const verifyPhysicalCount = async (req, res) => {
     const auditResult = await client.query(
       `INSERT INTO audit_logs 
         (shop_id, sku_id, user_id, expected_qty, actual_qty, deviation, deviation_percent, trigger_type, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id`,
       [
         shop_id,
