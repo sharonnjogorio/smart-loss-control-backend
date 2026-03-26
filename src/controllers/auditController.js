@@ -1,12 +1,5 @@
 const { pool } = require('../config/db');
 
-/**
- * Verify Physical Count and Detect Variance
- * POST /audit/verify
- * 
- * Compares staff's physical count against system's expected stock
- * Creates alerts for significant variances
- */
 const verifyPhysicalCount = async (req, res) => {
   const client = await pool.connect();
   
@@ -14,7 +7,6 @@ const verifyPhysicalCount = async (req, res) => {
     const { shop_id, id: user_id } = req.user;
     const { sku_id, physical_count, counted_at } = req.body;
 
-    // Validation
     if (!sku_id || physical_count === undefined || physical_count === null) {
       return res.status(400).json({
         success: false,
@@ -29,10 +21,8 @@ const verifyPhysicalCount = async (req, res) => {
       });
     }
 
-    // Start transaction
     await client.query('BEGIN');
 
-    // Get SKU details
     const skuResult = await client.query(
       'SELECT id, brand, size FROM skus WHERE id = $1',
       [sku_id]
@@ -48,8 +38,6 @@ const verifyPhysicalCount = async (req, res) => {
 
     const sku = skuResult.rows[0];
 
-    // Calculate Expected Stock
-    // Formula: Initial Stock + Restocks - Sales - Decants Out + Decants In
     const expectedStockQuery = `
       WITH stock_calculation AS (
         SELECT 
@@ -87,13 +75,11 @@ const verifyPhysicalCount = async (req, res) => {
     const expectedStock = parseInt(stockData.expected_stock) || 0;
     const physicalCount = parseInt(physical_count);
 
-    // Calculate variance
     const variance = physicalCount - expectedStock;
     const variancePercent = expectedStock > 0 
       ? ((variance / expectedStock) * 100).toFixed(2)
       : 0;
 
-    // Determine alert level
     let alertLevel = 'NORMAL';
     let alertTriggered = false;
     const absVariancePercent = Math.abs(parseFloat(variancePercent));
@@ -109,7 +95,6 @@ const verifyPhysicalCount = async (req, res) => {
       alertTriggered = true;
     }
 
-    // Get cost price for loss calculation
     const inventoryResult = await client.query(
       'SELECT cost_price FROM inventory WHERE shop_id = $1 AND sku_id = $2',
       [shop_id, sku_id]
@@ -118,7 +103,6 @@ const verifyPhysicalCount = async (req, res) => {
     const costPrice = inventoryResult.rows[0]?.cost_price || 0;
     const estimatedLoss = Math.abs(variance) * parseFloat(costPrice);
 
-    // Record audit log
     const auditResult = await client.query(
       `INSERT INTO audit_logs 
       (shop_id, sku_id, user_id, expected_qty, actual_qty, deviation, deviation_percent, trigger_type, loss_value_naira, created_at)
@@ -132,7 +116,7 @@ const verifyPhysicalCount = async (req, res) => {
         physicalCount,
         variance,
         variancePercent,
-        'MANUAL',  // trigger_type
+        'MANUAL',
         estimatedLoss,
         counted_at || new Date().toISOString()
       ]
@@ -140,14 +124,13 @@ const verifyPhysicalCount = async (req, res) => {
 
     const auditLogId = auditResult.rows[0].id;
 
-    // Create alert if variance is significant
     let alertId = null;
     if (alertTriggered) {
       const alertMessage = variance < 0
         ? `Missing ${Math.abs(variance)} units of ${sku.brand} ${sku.size}`
         : `Excess ${variance} units of ${sku.brand} ${sku.size}`;
 
-              const alertResult = await client.query(
+      const alertResult = await client.query(
         `INSERT INTO alerts 
         (shop_id, sku_id, audit_log_id, deviation, estimated_loss, type, severity, message, metadata)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -172,21 +155,11 @@ const verifyPhysicalCount = async (req, res) => {
         ]
       );
 
-
       alertId = alertResult.rows[0].id;
     }
 
-    // Update inventory with physical count (reconciliation)
-    await client.query(
-      `UPDATE inventory 
-       SET quantity = $1, updated_at = NOW()
-       WHERE shop_id = $2 AND sku_id = $3`,
-      [physicalCount, shop_id, sku_id]
-    );
-
     await client.query('COMMIT');
 
-    // Prepare response
     const response = {
       success: true,
       message: alertTriggered 
@@ -233,10 +206,6 @@ const verifyPhysicalCount = async (req, res) => {
   }
 };
 
-/**
- * Get Audit History
- * GET /audit/history
- */
 const getAuditHistory = async (req, res) => {
   const client = await pool.connect();
   
