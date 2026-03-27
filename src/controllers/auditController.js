@@ -81,19 +81,17 @@ const verifyPhysicalCount = async (req, res) => {
       : 0;
 
     let alertLevel = 'NORMAL';
-    let alertTriggered = false;
     const absVariancePercent = Math.abs(parseFloat(variancePercent));
 
     if (absVariancePercent >= 10.0) {
       alertLevel = 'CRITICAL';
-      alertTriggered = true;
     } else if (absVariancePercent >= 5.0) {
       alertLevel = 'WARNING';
-      alertTriggered = true;
     } else if (absVariancePercent >= 1.0) {
       alertLevel = 'MINOR';
-      alertTriggered = true;
     }
+
+    const alertTriggered = alertLevel !== 'NORMAL';
 
     const inventoryResult = await client.query(
       'SELECT cost_price FROM inventory WHERE shop_id = $1 AND sku_id = $2',
@@ -124,45 +122,11 @@ const verifyPhysicalCount = async (req, res) => {
 
     const auditLogId = auditResult.rows[0].id;
 
-    let alertId = null;
-    if (alertTriggered) {
-      const alertMessage = variance < 0
-        ? `Missing ${Math.abs(variance)} units of ${sku.brand} ${sku.size}`
-        : `Excess ${variance} units of ${sku.brand} ${sku.size}`;
-
-      const alertResult = await client.query(
-        `INSERT INTO alerts 
-        (shop_id, sku_id, audit_log_id, deviation, estimated_loss, type, severity, message, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id`,
-        [
-          shop_id,
-          sku_id,
-          auditLogId,
-          variance,
-          estimatedLoss,
-          'VARIANCE_DETECTED',
-          alertLevel,
-          alertMessage,
-          JSON.stringify({
-            audit_log_id: auditLogId,
-            expected_stock: expectedStock,
-            physical_count: physicalCount,
-            variance,
-            variance_percent: variancePercent,
-            counted_by: user_id
-          })
-        ]
-      );
-
-      alertId = alertResult.rows[0].id;
-    }
-
     await client.query('COMMIT');
 
-    const response = {
+    res.json({
       success: true,
-      message: alertTriggered 
+      message: alertTriggered
         ? `Variance detected: ${variance} units (${variancePercent}%)`
         : 'Count verified - no significant variance',
       audit_log_id: auditLogId,
@@ -185,13 +149,7 @@ const verifyPhysicalCount = async (req, res) => {
         total_decanted_out: parseInt(stockData.total_decanted_out),
         total_decanted_in: parseInt(stockData.total_decanted_in)
       }
-    };
-
-    if (alertId) {
-      response.alert_id = alertId;
-    }
-
-    res.json(response);
+    });
 
   } catch (error) {
     await client.query('ROLLBACK');
